@@ -107,6 +107,7 @@ ocr r      [flags]   (alias)
 | `--commit <sha>` | `-c` | — | 単一の commit をレビューします（その親との差分）。 |
 | `--preview` | `-p` | `false` | フィルタリングのパイプラインを実行しますが LLM はスキップします。ファイル一覧と除外理由を出力します。`--format json` に対応しています。`--format sarif` はサポートされていません（プレビューには出力する完了した指摘がありません）。 |
 | `--no-filter` | — | `false` | すべてのレビューコメントを保持し、ファイルごとの `REVIEW_FILTER_TASK` LLM 後処理呼び出しをスキップします。 |
+| `--no-summary` | — | `false` | レビュー完了後の `CHANGE_SUMMARY_TASK`、`IMPACT_ANALYSIS_TASK`、`FLOW_DIAGRAM_TASK` LLM 呼び出しをスキップします。 |
 | `--resume <session-id>` | — | — | 以前の互換性のある範囲または単一 commit レビューセッションから再開します。 |
 | `--format <fmt>` | `-f` | `text` | `text`（人間が読みやすい形式）、`json`（機械可読なコメント配列）または `sarif`（GitHub Code Scanning 用の SARIF 2.1.0 レポート）。 |
 | `--output <path>` | `-o` | 標準出力 | レビュー結果を UTF-8 ファイルに書き込みます（`-` は標準出力を表します）。初回書き込み時に遅延作成されるため、実行が失敗しても既存のファイルは変更されません。テキスト形式では ANSI カラーコードが自動的に削除されます。 |
@@ -304,6 +305,10 @@ ocr review --format json | jq .summary   # stdout は単一の JSON ドキュメ
 | `summary` | 任意。実行の集計: `files_reviewed`、`comments`、`total_tokens`、`input_tokens`、`output_tokens`、`cache_read_tokens`（omitempty）、`cache_write_tokens`（omitempty）、`elapsed`。`skipped` の実行時は省略されます。 |
 | `comments` | 常に存在しますが、空の場合があります。各コメントのフィールドは上記の例のとおりです。 |
 | `warnings` | 任意。1 つ以上のサブエージェントが失敗した場合に存在します。各項目は影響を受けたファイルとエラーを記述します。 |
+| `project_summary` | 任意。scan モードのプロジェクトレベルサマリー（markdown）。`ocr review` では空です。 |
+| `change_summary` | 任意。review モードの変更サマリー（markdown）：意図、影響を受けるモジュール、統計、主要な決定。`CHANGE_SUMMARY_TASK` のレビュー後 LLM 呼び出しで生成されます。`--no-summary` 設定時やタスク失敗時は省略されます。 |
+| `impact_analysis` | 任意。review モードのビジネス影響分析（markdown）：影響を受ける機能、契約変更、リスク評価、回帰しやすい領域。`IMPACT_ANALYSIS_TASK` のレビュー後 LLM 呼び出しで生成されます。 |
+| `flow_diagram` | 任意。review モードの Mermaid フローダイアグラム文字列。呼び出しチェーン/データフローの影響とビジネスプロセスの前後比較を示します。`FLOW_DIAGRAM_TASK` のレビュー後 LLM 呼び出しで生成されます。 |
 | `session_id` | 任意。永続化されたレビュー実行に含まれます。互換性のある範囲または単一 commit レビューを再試行する際に `ocr review --resume <session-id>` へ渡せます。 |
 | `resume` | 任意。再開した実行で存在し、`resumed_from`、`reused_files`、`rerun_files`、`previous_model`、`current_model` を含みます。 |
 
