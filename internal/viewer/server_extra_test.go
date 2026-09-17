@@ -47,6 +47,75 @@ func TestParseTemplate_NonExistent(t *testing.T) {
 	}
 }
 
+// Execute each page independently: parsing alone misses undefined partials,
+// and parsing every page together can overwrite page-specific breadcrumbs.
+func TestParseTemplate_SharedHeader(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       any
+		breadcrumb string
+	}{
+		{
+			name:       "repos.html",
+			data:       map[string]any{"Repos": []RepoInfo{{EncodedPath: "my-repo", SessionCount: 1}}},
+			breadcrumb: "",
+		},
+		{
+			name: "sessions.html",
+			data: sessionsData{
+				EncodedRepo: "my-repo",
+				RepoName:    "MyRepo",
+				Sessions:    []SessionSummary{{SessionID: "0123456789abcdef"}},
+			},
+			breadcrumb: `<span class="sep">/</span><span class="current">MyRepo</span>`,
+		},
+		{
+			name: "session.html",
+			data: sessionPageData{
+				EncodedRepo: "my-repo",
+				RepoName:    "MyRepo",
+				Session:     &ViewSession{Summary: SessionSummary{SessionID: "0123456789abcdef"}},
+			},
+			breadcrumb: `<span class="sep">/</span><a href="/r/my-repo">MyRepo</a><span class="sep">/</span><span class="current">0123456789ab…</span>`,
+		},
+		{
+			name: "compare.html",
+			data: comparePageData{
+				EncodedRepo: "my-repo",
+				RepoName:    "MyRepo",
+				Before:      SessionSummary{SessionID: "before"},
+				After:       SessionSummary{SessionID: "after"},
+			},
+			breadcrumb: `<span class="sep">/</span><a href="/r/my-repo">MyRepo</a><span class="sep">/</span><span class="current">compare</span>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpl, err := parseTemplate(tt.name)
+			if err != nil {
+				t.Fatalf("parseTemplate: %v", err)
+			}
+			if tmpl.Lookup("app-header") == nil {
+				t.Fatal("shared app-header template is missing")
+			}
+			var output strings.Builder
+			if err := tmpl.Execute(&output, tt.data); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			body := output.String()
+			for _, marker := range []string{`<nav class="breadcrumb">`, `class="nav-brand"`, `class="brand-icon"`} {
+				if count := strings.Count(body, marker); count != 1 {
+					t.Errorf("count of %q = %d, want 1", marker, count)
+				}
+			}
+			const brand = `<a href="/" class="nav-brand"><span class="brand-icon" aria-hidden="true"></span>Open Code Review Viewer</a>`
+			if !strings.Contains(body, `<nav class="breadcrumb">`+brand+tt.breadcrumb+`</nav>`) {
+				t.Error("expected shared home link, wordmark, decorative logo and page-specific breadcrumbs")
+			}
+		})
+	}
+}
+
 func TestRenderTemplate_Success(t *testing.T) {
 	rr := httptest.NewRecorder()
 	renderTemplate(rr, "repos.html", map[string]any{
@@ -105,18 +174,39 @@ func TestRenderTemplate_BadTemplate(t *testing.T) {
 }
 
 func TestRenderTemplate_Sessions(t *testing.T) {
-	rr := httptest.NewRecorder()
-	renderTemplate(rr, "sessions.html", sessionsData{
-		EncodedRepo: "test-repo",
-		RepoName:    "MyProject",
-		Sessions:    []SessionSummary{},
-	})
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", rr.Code)
+	tests := []struct {
+		name     string
+		sessions []SessionSummary
+	}{
+		{name: "empty", sessions: []SessionSummary{}},
+		{name: "populated", sessions: []SessionSummary{{SessionID: "session-123", GitBranch: "main"}}},
 	}
-	if !strings.Contains(rr.Body.String(), "MyProject") {
-		t.Errorf("expected repo name in sessions template")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			renderTemplate(rr, "sessions.html", sessionsData{
+				EncodedRepo: "test-repo",
+				RepoName:    "MyProject",
+				Sessions:    tt.sessions,
+			})
+
+			if rr.Code != http.StatusOK {
+				t.Errorf("status = %d, want 200", rr.Code)
+			}
+			body := rr.Body.String()
+			if len(tt.sessions) > 0 && !strings.Contains(body, `href="/r/test-repo/session-123"`) {
+				t.Errorf("expected populated session link in rendered output")
+			}
+			if !strings.Contains(body, "MyProject") {
+				t.Errorf("expected repo name in sessions template")
+			}
+			if !strings.Contains(body, `<a class="back-link" href="/" aria-label="Back to repositories">`) {
+				t.Errorf("expected back link to repositories in sessions template")
+			}
+			if !strings.Contains(body, `<a href="/" class="nav-brand">`) {
+				t.Errorf("expected breadcrumb navigation to remain in sessions template")
+			}
+		})
 	}
 }
 
@@ -153,6 +243,13 @@ func TestRenderTemplate_SessionPage(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, `<a class="back-link" href="/r/repo" aria-label="Back to sessions">`) {
+		t.Errorf("expected back link to repository sessions in session template")
+	}
+	if !strings.Contains(body, `<a href="/r/repo">MyRepo</a>`) {
+		t.Errorf("expected breadcrumb navigation to remain in session template")
 	}
 }
 
