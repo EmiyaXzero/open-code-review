@@ -51,6 +51,7 @@ API-ключ. Если `providers.<name>.api_key` не задан, OCR испо�
 | `bedrock` | anthropic-bedrock | определяется `aws_region` | — (цепочка учётных данных AWS) |
 | `openai` | openai | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
 | `openai-responses` | openai-responses | `https://api.openai.com/v1` | `OPENAI_RESPONSES_API_KEY` |
+| `openrouter` | openai | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
 | `gemini` | openai | `https://generativelanguage.googleapis.com/v1beta/openai` | `GEMINI_API_KEY` |
 | `dashscope` | openai | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `DASHSCOPE_API_KEY` |
 | `dashscope-tokenplan` | openai | `https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1` | `DASHSCOPE_TOKENPLAN_KEY` |
@@ -70,6 +71,12 @@ API-ключ. Если `providers.<name>.api_key` не задан, OCR испо�
 | `siliconflow-cn`  | openai | `https://api.siliconflow.cn/v1` | `SILICONFLOW_API_KEY` |
 | `novita` | openai | `https://api.novita.ai/openai` | `NOVITA_API_KEY` |
 | `xai` | openai | `https://api.x.ai/v1` | `XAI_API_KEY` |
+
+Списки моделей встроенных провайдеров служат подсказкой для `ocr config model` и
+не ограничивают `--model`. Если модель отсутствует и во встроенном списке, и в
+`providers.<name>.models`, OCR выводит предупреждение в stderr; провайдер
+проверит модель при отправке запроса. Для пользовательских провайдеров действуют
+прежние правила проверки `--model`.
 
 ### Переопределение Base URL встроенного провайдера
 
